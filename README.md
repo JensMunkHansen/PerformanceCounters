@@ -1,25 +1,6 @@
-# CMakeCPPTemplate
+# PerformanceCounters
 
-A C++ project template with CMake, Catch2 testing, and CI/CD support for Linux and Windows.
-
-## Using This Template
-
-### Option 1: GitHub UI
-Click "Use this template" button on GitHub to create a new repository.
-
-### Option 2: GitHub CLI
-```bash
-gh repo create MyNewProject --template JensMunkHansen/CMakeCPPTemplate --public --clone
-cd MyNewProject
-```
-
-### After Creating Your Project
-1. Rename `Hello` folder to your project name
-2. Rename `HelloTest` folder to `${YourProject}Test`
-3. Update `project(Hello ...)` in `CMakeLists.txt` to your project name
-4. Update source files (`Hello.h`, `Hello.cpp`, `HelloTest.cpp`) with your project name
-5. Update the namespace in source files if desired
-6. Update `Examples/Usage/` to use your new library name
+A C++ library for performance counter utilities with CMake, Catch2 testing, and CI/CD support for Linux and Windows.
 
 ## Features
 
@@ -29,7 +10,6 @@ cd MyNewProject
 - AddressSanitizer (Asan) support
 - CI/CD with GitHub Actions (Linux + Windows)
 - Automatic dependency caching
-- Examples with runtime DLL copying on Windows
 
 ## Project Structure
 
@@ -40,13 +20,13 @@ cd MyNewProject
 ├── versions.txt            # Dependency versions
 ├── dependencies.sh         # Linux dependency builder
 ├── build_dependencies.bat  # Windows dependency builder (multi-toolset)
-├── Hello/                  # Main library (rename to your project)
+├── PerformanceCounters/    # Main library
 │   ├── CMakeLists.txt
-│   ├── Hello.h
-│   └── Hello.cpp
-├── HelloTest/              # Unit tests (rename to ${PROJECT_NAME}Test)
+│   ├── PerformanceCounters.h
+│   └── PerformanceCounters.cpp
+├── PerformanceCountersTest/ # Unit tests
 │   ├── CMakeLists.txt
-│   └── HelloTest.cpp
+│   └── PerformanceCountersTest.cpp
 ├── Examples/               # Usage examples
 │   └── Usage/
 ├── NativeDeps/             # Native dependency builder (Catch2)

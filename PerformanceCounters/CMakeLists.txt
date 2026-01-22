@@ -8,6 +8,7 @@ set(SOURCES
 # Library headers (public API)
 set(HEADERS
   ${PROJECT_NAME}.h
+  ScopedTimer.h
 )
 
 # Create library (shared or static based on BUILD_SHARED_LIBS)

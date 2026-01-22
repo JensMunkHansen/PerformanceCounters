@@ -54,3 +54,5 @@ Darwin/
 
 # CMake
 CMakeUserPresets.json
+compile_commands.json
+.cache/

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25...3.31)
 
-# Note: When customizing this template, change "Hello" to your project name
-project(HelloUsage LANGUAGES CXX)
+# Note: When customizing this template, change "PerformanceCounters" to your project name
+project(PerformanceCountersUsage LANGUAGES CXX)
 
 # Add CMake module path for shared utilities
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/../../CMake)
@@ -19,11 +19,11 @@ include(spsAsan)
 include(spsTargets)
 
 # Find the main library
-find_package(Hello CONFIG REQUIRED)
+find_package(PerformanceCounters CONFIG REQUIRED)
 
 # Main usage example
-add_executable(HelloUsage main.cpp)
-target_link_libraries(HelloUsage PRIVATE Hello::Hello build)
+add_executable(PerformanceCountersUsage main.cpp)
+target_link_libraries(PerformanceCountersUsage PRIVATE PerformanceCounters::PerformanceCounters build)
 
 # Copy runtime DLLs on Windows when using shared libraries
-sps_copy_runtime_dlls(HelloUsage)
+sps_copy_runtime_dlls(PerformanceCountersUsage)
