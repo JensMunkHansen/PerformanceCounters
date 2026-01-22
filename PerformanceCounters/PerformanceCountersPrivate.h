@@ -110,6 +110,14 @@ struct FunctionRegistry::Impl
     std::atomic<bool>& GetDestroyed();
 };
 
+#ifdef _WIN32
+/**
+ * @brief Convert Windows performance counter ticks to nanoseconds.
+ * @internal Not part of public API.
+ */
+int64_t TicksToNanoseconds(int64_t ticks);
+#endif
+
 /**
  * @class ScopedTimerImpl
  * @brief RAII timer implementation.
@@ -130,7 +138,6 @@ class PERFORMANCECOUNTERS_EXPORT ScopedTimerImpl
 
 #ifdef _WIN32
     LARGE_INTEGER Start;
-    static int64_t ToNanoseconds(int64_t ticks);
 #else
     std::chrono::steady_clock::time_point Start;
 #endif

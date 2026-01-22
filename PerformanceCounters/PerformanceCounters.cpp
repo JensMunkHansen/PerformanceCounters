@@ -435,7 +435,7 @@ ScopedTimerHelper::~ScopedTimerHelper()
 #ifdef _WIN32
     LARGE_INTEGER end;
     QueryPerformanceCounter(&end);
-    local.Elapsed += ScopedTimerImpl::ToNanoseconds(end.QuadPart - pImpl->Start.QuadPart);
+    local.Elapsed += TicksToNanoseconds(end.QuadPart - pImpl->Start.QuadPart);
 #else
     auto end = std::chrono::steady_clock::now();
     local.Elapsed +=
@@ -466,7 +466,7 @@ ScopedTimerImpl::~ScopedTimerImpl()
 #ifdef _WIN32
     LARGE_INTEGER end;
     QueryPerformanceCounter(&end);
-    local.Elapsed += ToNanoseconds(end.QuadPart - this->Start.QuadPart);
+    local.Elapsed += TicksToNanoseconds(end.QuadPart - this->Start.QuadPart);
 #else
     auto end = std::chrono::steady_clock::now();
     local.Elapsed +=
@@ -476,7 +476,7 @@ ScopedTimerImpl::~ScopedTimerImpl()
 }
 
 #ifdef _WIN32
-int64_t ScopedTimerImpl::ToNanoseconds(int64_t ticks)
+int64_t TicksToNanoseconds(int64_t ticks)
 {
     static const int64_t freq = []()
     {
