@@ -1,0 +1,241 @@
+name: Build and Test Windows
+description: Build dependencies, configure, build, and test project on Windows
+
+inputs:
+  compiler:
+    description: 'Compiler to use (msvc or clangcl)'
+    required: true
+  build-type:
+    description: 'Build type (Debug, Release, Asan)'
+    required: true
+  library-type:
+    description: 'Library type (STATIC or SHARED)'
+    required: false
+    default: 'SHARED'
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: pwsh
+      run: |
+        $buildType = "${{ inputs.build-type }}"
+        $compiler = "${{ inputs.compiler }}"
+        $libraryType = "${{ inputs.library-type }}"
+
+        if ($buildType -ne "Debug" -and $buildType -ne "Release" -and $buildType -ne "Asan") {
+          Write-Error "Invalid build type: $buildType"
+          exit 1
+        }
+
+        if ($compiler -ne "msvc" -and $compiler -ne "clangcl") {
+          Write-Error "Invalid compiler: $compiler"
+          exit 1
+        }
+
+        # Set BUILD_SHARED_LIBS based on library type
+        if ($libraryType -eq "SHARED") {
+          $buildShared = "ON"
+        } else {
+          $buildShared = "OFF"
+        }
+
+        echo "BUILD_TYPE=$buildType" >> $env:GITHUB_ENV
+        echo "COMPILER=$compiler" >> $env:GITHUB_ENV
+        echo "BUILD_SHARED_LIBS=$buildShared" >> $env:GITHUB_ENV
+
+    - name: Set Dependencies_ROOT
+      shell: pwsh
+      run: |
+        $depsRoot = "${{ github.workspace }}/deps"
+        echo "Dependencies_ROOT=$depsRoot" >> $env:GITHUB_ENV
+        Write-Host "Dependencies_ROOT set to: $depsRoot"
+
+    - name: Calculate NativeDeps checksum
+      id: deps-checksum
+      shell: pwsh
+      run: |
+        $files = @("NativeDeps\CMakeLists.txt", "versions.txt", "build_dependencies.bat")
+        $hashes = @()
+        foreach ($file in $files) {
+          if (Test-Path $file) {
+            $hash = Get-FileHash -Path $file -Algorithm SHA256
+            $hashes += $hash.Hash
+          }
+        }
+        if ($hashes.Count -gt 0) {
+          $combined = $hashes -join ""
+          $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined)
+          $sha = [System.Security.Cryptography.SHA256]::Create()
+          $checksum = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace("-","").ToLower()
+        } else {
+          $checksum = "unknown"
+        }
+        echo "checksum=$checksum" >> $env:GITHUB_OUTPUT
+
+    - name: Restore dependencies cache
+      id: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/deps/windows
+        key: deps-all-configs-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
+        restore-keys: |
+          deps-all-configs-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v2
+
+    - name: Check if dependencies were restored
+      id: check-deps
+      shell: pwsh
+      run: |
+        $depsPath = "$env:Dependencies_ROOT/windows"
+        $msvcInstall = "$depsPath/msvc/install/lib/cmake/Catch2/Catch2Config.cmake"
+        $clangclInstall = "$depsPath/clangcl/install/lib/cmake/Catch2/Catch2Config.cmake"
+
+        if ((Test-Path $msvcInstall) -and (Test-Path $clangclInstall)) {
+          Write-Host "Dependencies restored from cache"
+          echo "need-build=false" >> $env:GITHUB_OUTPUT
+        } else {
+          Write-Host "Dependencies not found - need to build"
+          echo "need-build=true" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Build dependencies (if needed)
+      if: steps.check-deps.outputs.need-build == 'true'
+      shell: pwsh
+      run: |
+        Write-Host "::group::Build all dependency configurations"
+
+        # Build ALL toolchains to ensure we have what we need for future runs
+        & cmd /c "call build_dependencies.bat msvc --clean"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        & cmd /c "call build_dependencies.bat clangcl --clean"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        & cmd /c "call build_dependencies.bat msvc-asan --clean"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        Write-Host "All dependencies built successfully"
+        Write-Host "::endgroup::"
+
+    - name: Save dependencies to cache
+      if: always() && steps.check-deps.outputs.need-build == 'true'
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ github.workspace }}/deps/windows
+        key: deps-all-configs-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
+
+    - name: Verify dependencies
+      shell: pwsh
+      run: |
+        Write-Host "::group::Verify dependencies"
+
+        if ("${{ env.COMPILER }}" -eq "msvc") {
+          if ("${{ env.BUILD_TYPE }}" -eq "Asan") {
+            $toolset = "msvc-asan"
+          } else {
+            $toolset = "msvc"
+          }
+        } else {
+          $toolset = "clangcl"
+        }
+
+        $installDir = "$env:Dependencies_ROOT\windows\$toolset\install"
+
+        if (Test-Path $installDir) {
+          Write-Host "Dependencies found at: $installDir"
+
+          $catch2Config = "$installDir\lib\cmake\Catch2\Catch2Config.cmake"
+          if (Test-Path $catch2Config) {
+            Write-Host "Catch2 found"
+          } else {
+            Write-Error "ERROR: Catch2 not found"
+            exit 1
+          }
+
+          echo "CMAKE_PREFIX_PATH=$installDir" >> $env:GITHUB_ENV
+        } else {
+          Write-Error "ERROR: Dependencies not found at: $installDir"
+          exit 1
+        }
+        Write-Host "::endgroup::"
+
+    - name: Set build variables
+      id: build-vars
+      shell: pwsh
+      run: |
+        $compiler = "${{ env.COMPILER }}"
+        $buildType = "${{ env.BUILD_TYPE }}"
+
+        if ($compiler -eq "msvc") {
+          if ($buildType -eq "Asan") {
+            $preset = "windows-msvc-asan"
+            $buildDir = "build\windows-msvc-asan"
+          } else {
+            $preset = "windows-msvc"
+            $buildDir = "build\windows-msvc"
+          }
+        } else {
+          $preset = "windows-clangcl"
+          $buildDir = "build\windows-clangcl"
+        }
+
+        Write-Host "Preset: $preset"
+        Write-Host "Build dir: $buildDir"
+        Write-Host "Config: $buildType"
+
+        echo "PRESET=$preset" >> $env:GITHUB_ENV
+        echo "BUILD_DIR=$buildDir" >> $env:GITHUB_ENV
+        echo "CONFIG=$buildType" >> $env:GITHUB_ENV
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Configure project
+      shell: pwsh
+      run: |
+        Write-Host "::group::Configure project"
+        cmake --preset $env:PRESET -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" -DBUILD_SHARED_LIBS=$env:BUILD_SHARED_LIBS
+        Write-Host "::endgroup::"
+
+    - name: Build project
+      shell: pwsh
+      run: |
+        Write-Host "::group::Build project"
+        cmake --build $env:BUILD_DIR --config $env:CONFIG --parallel 8
+        Write-Host "::endgroup::"
+
+    - name: Run tests
+      shell: pwsh
+      run: |
+        Write-Host "::group::Run tests"
+        ctest --test-dir $env:BUILD_DIR -C $env:CONFIG --output-on-failure
+        Write-Host "::endgroup::"
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-${{ env.COMPILER }}-${{ env.BUILD_TYPE }}-${{ github.run_number }}
+        path: |
+          build/**/Testing/Temporary/LastTest.log
+          build/**/Testing/Temporary/LastTestsFailed.log
+          build/**/Testing/Temporary/CTestCostData.txt
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Upload dependency build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: deps-build-logs-${{ env.COMPILER }}-${{ github.run_number }}
+        path: |
+          ${{ github.workspace }}/deps/windows/**/CMakeCache.txt
+          ${{ github.workspace }}/deps/windows/**/CMakeFiles/CMakeError.log
+          ${{ github.workspace }}/deps/windows/**/CMakeFiles/CMakeOutput.log
+        retention-days: 30
+        if-no-files-found: warn

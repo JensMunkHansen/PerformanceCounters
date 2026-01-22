@@ -1,0 +1,5 @@
+# Dependency Versions for Template Project
+# Format: KEY=VALUE (one per line)
+# Lines starting with # are comments and will be ignored
+
+CATCH2_VERSION=3.5.2
