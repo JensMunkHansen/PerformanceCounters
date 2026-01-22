@@ -76,8 +76,9 @@ struct PERFORMANCECOUNTERS_EXPORT ThreadAccumulator
  * @brief Thread-local accumulator instance.
  *
  * @internal Not part of public API.
+ * Note: thread_local cannot have DLL interface on Windows.
  */
-PERFORMANCECOUNTERS_EXPORT extern thread_local ThreadAccumulator TlsAccum;
+extern thread_local ThreadAccumulator TlsAccum;
 
 // Include the public header to get the FunctionRegistry class declaration
 #include "ScopedTimer.h"
