@@ -22,6 +22,8 @@ target_link_libraries(${TARGET_NAME} PRIVATE $<BUILD_INTERFACE:$<LINK_ONLY:build
 # Include directories
 target_include_directories(${TARGET_NAME}
   PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<INSTALL_INTERFACE:include>
@@ -52,10 +54,10 @@ install(TARGETS ${TARGET_NAME}
 
 # Install headers
 install(FILES ${HEADERS}
-  DESTINATION include
+  DESTINATION include/PerformanceCounters
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME_LOWER}_export.h
-  DESTINATION include
+  DESTINATION include/PerformanceCounters
 )
 
 # Install CMake config files
