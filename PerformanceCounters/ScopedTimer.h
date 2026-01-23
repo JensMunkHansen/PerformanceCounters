@@ -128,12 +128,16 @@ class PERFORMANCECOUNTERS_EXPORT ScopedTimerHelper
 // Macros
 // ----------------------------------------------------------------------------
 
+#ifndef PERFORMANCE_COUNTERS_DISABLE
+
 /**
  * @def ScopedTimer
  * @brief Time the current function using __FUNCTION__.
  *
  * Place at the start of a function to time its entire execution.
  * Uses static local for one-time registration.
+ *
+ * Define PERFORMANCE_COUNTERS_DISABLE to make this a no-op.
  */
 #define ScopedTimer()                                                                              \
     static const int _pc_timer_id_ =                                                               \
@@ -146,9 +150,18 @@ class PERFORMANCECOUNTERS_EXPORT ScopedTimerHelper
  *
  * Use for timing specific blocks within a function.
  * @param name Custom name for this timed scope.
+ *
+ * Define PERFORMANCE_COUNTERS_DISABLE to make this a no-op.
  */
 #define ScopedTimerNamed(name)                                                                     \
     static const int _pc_timer_id_ = ::FunctionRegistry::Instance().RegisterFunction(name);        \
     ::ScopedTimerHelper _pc_timer_(_pc_timer_id_)
+
+#else
+
+#define ScopedTimer()          ((void)0)
+#define ScopedTimerNamed(name) ((void)0)
+
+#endif // PERFORMANCE_COUNTERS_DISABLE
 
 #endif // SCOPEDTIMER_H
