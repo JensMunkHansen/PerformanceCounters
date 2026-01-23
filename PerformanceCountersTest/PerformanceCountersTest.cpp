@@ -25,7 +25,7 @@ void MainExeTimedFunction()
     std::this_thread::sleep_for(std::chrono::microseconds(100));
 }
 
-TEST_CASE("Basic timing functionality", "[timing]")
+TEST_CASE("PerformanceCounters::Timing::Basic", "[timing]")
 {
     // Reset counters before test
     auto& pc = PerformanceCounters::GetInstance();
@@ -64,7 +64,7 @@ TEST_CASE("Basic timing functionality", "[timing]")
     }
 }
 
-TEST_CASE("Cross-module timing aggregation", "[timing][cross-module]")
+TEST_CASE("PerformanceCounters::Timing::CrossModule", "[timing][cross-module]")
 {
     auto& pc = PerformanceCounters::GetInstance();
     pc.ResetAllCounters();
@@ -107,7 +107,7 @@ TEST_CASE("Cross-module timing aggregation", "[timing][cross-module]")
     }
 }
 
-TEST_CASE("API functionality", "[api]")
+TEST_CASE("PerformanceCounters::API::Core", "[api]")
 {
     auto& pc = PerformanceCounters::GetInstance();
     pc.ResetAllCounters();
@@ -165,7 +165,7 @@ TEST_CASE("API functionality", "[api]")
     }
 }
 
-TEST_CASE("Thread safety", "[threading]")
+TEST_CASE("PerformanceCounters::Threading::Safety", "[threading]")
 {
     auto& pc = PerformanceCounters::GetInstance();
     pc.ResetAllCounters();
