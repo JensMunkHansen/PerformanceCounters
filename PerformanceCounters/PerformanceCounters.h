@@ -29,6 +29,7 @@
 
 #include "performancecounters_export.h"
 
+#include <memory>
 #include <string>
 
 // Forward declaration - internal class
@@ -151,7 +152,7 @@ class PERFORMANCECOUNTERS_EXPORT PerformanceCounters
 
     friend class FunctionRegistry;
     FunctionRegistry& GetRegistry();
-    FunctionRegistry* Registry;
+    std::unique_ptr<FunctionRegistry> Registry;
 };
 
 /**

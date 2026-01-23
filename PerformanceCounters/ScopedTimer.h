@@ -33,6 +33,8 @@
 
 #include "performancecounters_export.h"
 
+#include <memory>
+
 // Include PerformanceCounters.h to ensure the Schwarz counter initializer
 // runs in every translation unit that uses ScopedTimer
 #include "PerformanceCounters.h"
@@ -80,9 +82,10 @@ class PERFORMANCECOUNTERS_EXPORT FunctionRegistry
 
     friend class PerformanceCounters;
     friend struct ThreadAccumulator;
+    friend struct std::default_delete<FunctionRegistry>;
 
     struct Impl;
-    Impl* pImpl;
+    std::unique_ptr<Impl> pImpl;
 };
 
 /**
@@ -118,7 +121,7 @@ class PERFORMANCECOUNTERS_EXPORT ScopedTimerHelper
 
   private:
     struct Impl;
-    Impl* pImpl;
+    std::unique_ptr<Impl> pImpl;
 };
 
 // ----------------------------------------------------------------------------

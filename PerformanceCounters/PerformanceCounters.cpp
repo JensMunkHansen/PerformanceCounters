@@ -13,9 +13,58 @@
 #include "ScopedTimer.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstring>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
+//----------------------------------------------------------------------------
+// Internal types (not exposed in any header)
+//----------------------------------------------------------------------------
+
+/// Global atomic counters for a single function's timing statistics.
+struct FunctionCounters
+{
+    std::atomic<int64_t> TotalNanoseconds{ 0 };
+    std::atomic<int> CallCount{ 0 };
+};
+
+/// Internal implementation of FunctionRegistry (PIMPL pattern).
+struct FunctionRegistry::Impl
+{
+    std::mutex Mutex;
+    std::unordered_map<std::string, int> NameToId;
+    std::vector<std::string> Names;
+    std::vector<std::unique_ptr<FunctionCounters>> Counters;
+    std::atomic<int> Count{ 0 };
+
+    std::mutex AccumulatorMutex;
+    std::vector<ThreadAccumulator*> Accumulators;
+    std::atomic<bool> Destroyed{ false };  ///< Guards against static destruction order fiasco.
+
+    FunctionCounters& GetCounter(int id);
+    const std::string& GetName(int id) const;
+    std::mutex& GetAccumulatorMutex();
+    std::vector<ThreadAccumulator*>& GetAccumulators();
+    std::atomic<bool>& GetDestroyed();
+};
+
+#ifdef _WIN32
+/// Convert Windows performance counter ticks to nanoseconds.
+static int64_t TicksToNanoseconds(int64_t ticks);
+#endif
 
 //----------------------------------------------------------------------------
 // The PerformanceCounters singleton pointer.
@@ -84,23 +133,19 @@ PerformanceCounters& PerformanceCounters::GetInstance()
 }
 
 //----------------------------------------------------------------------------
-PerformanceCounters::PerformanceCounters()
-  : Registry(nullptr)
-{
-}
+PerformanceCounters::PerformanceCounters() = default;
 
 //----------------------------------------------------------------------------
-PerformanceCounters::~PerformanceCounters()
-{
-    delete this->Registry;
-}
+PerformanceCounters::~PerformanceCounters() = default;
 
 //----------------------------------------------------------------------------
 FunctionRegistry& PerformanceCounters::GetRegistry()
 {
     if (!this->Registry)
     {
-        this->Registry = new FunctionRegistry();
+        // Can't use make_unique here - FunctionRegistry has private ctor,
+        // accessible only to friend class PerformanceCounters.
+        this->Registry.reset(new FunctionRegistry());
     }
     return *this->Registry;
 }
@@ -307,14 +352,13 @@ FunctionRegistry& FunctionRegistry::Instance()
 }
 
 FunctionRegistry::FunctionRegistry()
-  : pImpl(new Impl)
+  : pImpl(std::make_unique<Impl>())
 {
 }
 
 FunctionRegistry::~FunctionRegistry()
 {
     pImpl->Destroyed.store(true, std::memory_order_release);
-    delete pImpl;
 }
 
 int FunctionRegistry::RegisterFunction(const char* name)
@@ -368,6 +412,7 @@ ThreadAccumulator::~ThreadAccumulator()
 {
     this->Flush();
 
+    // Registry may be destroyed before thread_local accumulators during shutdown.
     auto& reg = FunctionRegistry::Instance();
     if (!reg.pImpl->GetDestroyed().load(std::memory_order_acquire))
     {
@@ -418,7 +463,7 @@ struct ScopedTimerHelper::Impl
 };
 
 ScopedTimerHelper::ScopedTimerHelper(int id)
-  : pImpl(new Impl)
+  : pImpl(std::make_unique<Impl>())
 {
     pImpl->Id = id;
     TlsAccum.EnsureCapacity(id + 1);
@@ -442,41 +487,10 @@ ScopedTimerHelper::~ScopedTimerHelper()
       std::chrono::duration_cast<std::chrono::nanoseconds>(end - pImpl->Start).count();
 #endif
     local.Calls++;
-    delete pImpl;
-}
-
-//----------------------------------------------------------------------------
-// ScopedTimerImpl (internal, used by private header)
-//----------------------------------------------------------------------------
-
-ScopedTimerImpl::ScopedTimerImpl(int id)
-  : Id(id)
-{
-    TlsAccum.EnsureCapacity(id + 1);
-#ifdef _WIN32
-    QueryPerformanceCounter(&this->Start);
-#else
-    this->Start = std::chrono::steady_clock::now();
-#endif
-}
-
-ScopedTimerImpl::~ScopedTimerImpl()
-{
-    auto& local = TlsAccum.Counters[this->Id];
-#ifdef _WIN32
-    LARGE_INTEGER end;
-    QueryPerformanceCounter(&end);
-    local.Elapsed += TicksToNanoseconds(end.QuadPart - this->Start.QuadPart);
-#else
-    auto end = std::chrono::steady_clock::now();
-    local.Elapsed +=
-      std::chrono::duration_cast<std::chrono::nanoseconds>(end - this->Start).count();
-#endif
-    local.Calls++;
 }
 
 #ifdef _WIN32
-int64_t TicksToNanoseconds(int64_t ticks)
+static int64_t TicksToNanoseconds(int64_t ticks)
 {
     static const int64_t freq = []()
     {
